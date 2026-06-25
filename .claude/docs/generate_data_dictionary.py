@@ -92,6 +92,15 @@ TABLES = [
      "Records wallet-to-wallet transfers.",
      "A transfer is a single logical operation spanning two ledger entries; it needs its own status and idempotency key.",
      "From/to wallets, amount, currency, status (PENDING/COMPLETED/FAILED/REVERSED) and a unique reference; links the two transaction legs."),
+    # ---- vault-service -------------------------------------------------
+    ("vault", "documents",
+     "Metadata for an uploaded document.",
+     "The encrypted file lives in MinIO; the service needs a queryable record of ownership, name, size, checksum and status.",
+     "Per-document row: user_id (plain ref), original filename, MinIO storage_key, mime type, plaintext size, sha256 checksum, category and soft-delete status."),
+    ("vault", "document_shares",
+     "Time-limited public share links for a document.",
+     "Owners can share a document without exposing their JWT; tokens must be revocable, expiring and download-limited.",
+     "Hashed share token with optional expiry and max-downloads, a download counter, creator and revocation timestamp."),
 ]
 
 # Column-level dictionary per service:
@@ -263,6 +272,31 @@ COLUMNS = {
         ("transfers", "description", "varchar", "NULL", "Free-text note."),
         ("transfers", "created_at", "timestamptz", "default now()", "Creation time."),
         ("transfers", "completed_at", "timestamptz", "NULL", "Set when the transfer completes."),
+    ],
+    "vault": [
+        # documents
+        ("documents", "id", "uuid", "PK", "Primary key."),
+        ("documents", "user_id", "uuid", "indexed", "Owner — plain reference to auth users.id (no cross-DB FK)."),
+        ("documents", "filename", "varchar", "NOT NULL", "Original upload filename."),
+        ("documents", "storage_key", "varchar", "UNIQUE, NOT NULL", "Object key in MinIO (holds ciphertext)."),
+        ("documents", "mime_type", "varchar", "NOT NULL", "Reported content type."),
+        ("documents", "size_bytes", "int", "NOT NULL", "Plaintext size in bytes."),
+        ("documents", "checksum", "varchar", "NOT NULL", "sha256 of plaintext; verified on download."),
+        ("documents", "category", "varchar", "NULL", "Optional user category/tag."),
+        ("documents", "status", "enum", "default ACTIVE", "ACTIVE | DELETED (soft delete; blob retained)."),
+        ("documents", "created_at", "timestamptz", "default now()", "Upload time."),
+        ("documents", "updated_at", "timestamptz", "@updatedAt", "Last update time."),
+        ("documents", "deleted_at", "timestamptz", "NULL", "Soft-delete marker."),
+        # document_shares
+        ("document_shares", "id", "uuid", "PK", "Primary key."),
+        ("document_shares", "document_id", "uuid", "FK documents.id", "Shared document."),
+        ("document_shares", "token_hash", "varchar", "UNIQUE, NOT NULL", "sha256 of the share token."),
+        ("document_shares", "created_by", "uuid", "NOT NULL", "User who created the share."),
+        ("document_shares", "expires_at", "timestamptz", "NULL", "Optional expiry."),
+        ("document_shares", "max_downloads", "int", "NULL", "Optional download cap."),
+        ("document_shares", "download_count", "int", "default 0", "Downloads used so far."),
+        ("document_shares", "revoked_at", "timestamptz", "NULL", "Set when revoked."),
+        ("document_shares", "created_at", "timestamptz", "default now()", "Creation time."),
     ],
 }
 

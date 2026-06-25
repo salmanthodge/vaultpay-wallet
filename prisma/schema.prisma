@@ -1,0 +1,97 @@
+// VaultPay wallet-service schema (database-per-service: vaultpay_wallet).
+// Conventions (rules/10): uuid PKs, snake_case tables via @@map, camelCase fields
+// mapped to snake_case columns, created_at/updated_at everywhere.
+// No cross-DB foreign keys: user_id is a plain reference to auth's users.id.
+// Money: Decimal(20,4); balance arithmetic is atomic in the repository layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+model Wallet {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  currency  String       @db.VarChar(3)
+  balance   Decimal      @default(0) @db.Decimal(20, 4)
+  status    WalletStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  transactions  Transaction[]
+  transfersFrom Transfer[]    @relation("TransferFrom")
+  transfersTo   Transfer[]    @relation("TransferTo")
+
+  @@unique([userId, currency])
+  @@index([userId])
+  @@map("wallets")
+}
+
+model Transaction {
+  id           String            @id @default(uuid()) @db.Uuid
+  walletId     String            @map("wallet_id") @db.Uuid
+  type         TransactionType
+  amount       Decimal           @db.Decimal(20, 4)
+  balanceAfter Decimal           @map("balance_after") @db.Decimal(20, 4)
+  status       TransactionStatus @default(COMPLETED)
+  reference    String?           @unique
+  description  String?
+  transferId   String?           @map("transfer_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  wallet   Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  transfer Transfer? @relation(fields: [transferId], references: [id])
+
+  @@index([walletId])
+  @@index([transferId])
+  @@map("transactions")
+}
+
+model Transfer {
+  id           String         @id @default(uuid()) @db.Uuid
+  fromWalletId String         @map("from_wallet_id") @db.Uuid
+  toWalletId   String         @map("to_wallet_id") @db.Uuid
+  amount       Decimal        @db.Decimal(20, 4)
+  currency     String         @db.VarChar(3)
+  status       TransferStatus @default(COMPLETED)
+  reference    String?        @unique
+  description  String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  completedAt  DateTime?      @map("completed_at")
+
+  fromWallet   Wallet        @relation("TransferFrom", fields: [fromWalletId], references: [id])
+  toWallet     Wallet        @relation("TransferTo", fields: [toWalletId], references: [id])
+  transactions Transaction[]
+
+  @@index([fromWalletId])
+  @@index([toWalletId])
+  @@map("transfers")
+}

@@ -1,0 +1,56 @@
+# vaultpay-wallet — self-contained local stack (free & local).
+# Owns its own Postgres DB (vaultpay_wallet); Redis scoped here.
+services:
+  wallet-db:
+    image: postgres:16-alpine
+    container_name: vaultpay-wallet-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vaultpay
+      POSTGRES_PASSWORD: vaultpay
+      POSTGRES_DB: vaultpay_wallet
+    ports:
+      - "5442:5432"
+    volumes:
+      - wallet_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vaultpay -d vaultpay_wallet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  wallet-redis:
+    image: redis:7-alpine
+    container_name: vaultpay-wallet-redis
+    restart: unless-stopped
+    ports:
+      - "6389:6379"
+    volumes:
+      - wallet_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  wallet-service:
+    build: .
+    container_name: vaultpay-wallet-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://vaultpay:vaultpay@wallet-db:5432/vaultpay_wallet?schema=public
+      REDIS_URL: redis://wallet-redis:6379
+    ports:
+      - "4002:4002"
+    depends_on:
+      wallet-db:
+        condition: service_healthy
+      wallet-redis:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node src/server.js"
+
+volumes:
+  wallet_db_data:
+  wallet_redis_data:

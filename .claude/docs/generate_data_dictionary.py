@@ -101,6 +101,11 @@ TABLES = [
      "Time-limited public share links for a document.",
      "Owners can share a document without exposing their JWT; tokens must be revocable, expiring and download-limited.",
      "Hashed share token with optional expiry and max-downloads, a download counter, creator and revocation timestamp."),
+    # ---- admin-service -------------------------------------------------
+    ("admin", "admin_activity_logs",
+     "Audit trail of back-office admin actions.",
+     "Staff actions (viewing/suspending customers, etc.) must be attributable and reviewable for compliance.",
+     "Append-only rows: which admin did what action to which target, with IP and metadata; customer data itself is fetched from auth over S2S, not stored here."),
 ]
 
 # Column-level dictionary per service:
@@ -297,6 +302,17 @@ COLUMNS = {
         ("document_shares", "download_count", "int", "default 0", "Downloads used so far."),
         ("document_shares", "revoked_at", "timestamptz", "NULL", "Set when revoked."),
         ("document_shares", "created_at", "timestamptz", "default now()", "Creation time."),
+    ],
+    "admin": [
+        ("admin_activity_logs", "id", "uuid", "PK", "Primary key."),
+        ("admin_activity_logs", "admin_id", "uuid", "indexed", "Acting admin (ref to auth admin_users.id)."),
+        ("admin_activity_logs", "admin_email", "varchar", "NOT NULL", "Admin email at action time."),
+        ("admin_activity_logs", "action", "varchar", "indexed", "Action code (e.g. CUSTOMER_SUSPENDED)."),
+        ("admin_activity_logs", "target_type", "varchar", "NULL", "Target kind (e.g. CUSTOMER)."),
+        ("admin_activity_logs", "target_id", "varchar", "NULL", "Target identifier."),
+        ("admin_activity_logs", "metadata", "jsonb", "NULL", "Extra action context."),
+        ("admin_activity_logs", "ip", "varchar", "NULL", "Admin client IP."),
+        ("admin_activity_logs", "created_at", "timestamptz", "default now()", "Action time."),
     ],
 }
 

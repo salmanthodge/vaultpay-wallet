@@ -40,6 +40,9 @@ services:
     env_file:
       - .env
     environment:
+      # Production image (built with --omit=dev): force production so pino doesn't try to
+      # load the dev-only pino-pretty transport. Overrides NODE_ENV=development from .env.
+      NODE_ENV: production
       DATABASE_URL: postgresql://vaultpay:vaultpay@wallet-db:5432/vaultpay_wallet?schema=public
       REDIS_URL: redis://wallet-redis:6379
     ports:

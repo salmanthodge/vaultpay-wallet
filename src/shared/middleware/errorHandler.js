@@ -3,6 +3,7 @@ import { httpStatus } from '../constants/httpStatus.js';
 import { errorCodes } from '../constants/errorCodes.js';
 import { messages } from '../constants/messages.js';
 import { logger } from '../config/logger.js';
+import { getContextLogger, getRequestId } from '../config/requestContext.js';
 import { isProduction } from '../config/env.js';
 
 /** Centralized error handler (rules/03) — the only place errors become responses. */
@@ -12,10 +13,16 @@ export const errorHandler = (err, req, res, _next) => {
   const code = isApp ? err.code : errorCodes.INTERNAL_ERROR;
   const message = isApp ? err.message : messages[errorCodes.INTERNAL_ERROR];
 
+  // Log every thrown error at the boundary, correlated to the request (rules/03).
+  const log = getContextLogger(logger);
+  const requestId = getRequestId();
   if (statusCode >= 500) {
-    logger.error({ err: err.message, stack: err.stack, code, path: req.originalUrl }, 'request failed');
+    log.error(
+      { err: err.message, stack: err.stack, code, statusCode, path: req.originalUrl, requestId },
+      'error thrown (server)',
+    );
   } else {
-    logger.warn({ code, message, path: req.originalUrl }, 'request error');
+    log.warn({ code, message, statusCode, path: req.originalUrl, requestId }, 'error thrown (client)');
   }
 
   const error = { code, message };

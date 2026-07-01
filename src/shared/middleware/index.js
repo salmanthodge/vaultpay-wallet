@@ -1,3 +1,4 @@
+export { requestLogger } from './requestLogger.js';
 export { ipTracker } from './ipTracker.js';
 export { rateLimiter } from './rateLimiter.js';
 export { auth } from './auth.js';

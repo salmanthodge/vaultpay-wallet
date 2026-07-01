@@ -30,6 +30,11 @@ const schema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  // write logs to rotating daily files under LOG_DIR (in addition to the console)
+  LOG_TO_FILE: booleanFromString(true),
+  LOG_DIR: z.string().default('logs'),
+  // print every Prisma SQL query (text + params + duration) to console/files
+  DB_LOG_QUERIES: booleanFromString(true),
 
   // datastores
   DATABASE_URL: z.string().url(),
